@@ -1,10 +1,11 @@
-# Delayed JOb
+# Delayed Job
 
 Delayed_job (or DJ) encapsulates the common pattern of asynchronously executing longer tasks in the background.
 
-This is a direct port of [Delayed::Job](https://github.com/tobi/delayed_job).
+This is a direct port of [Delayed::Job](https://github.com/tobi/delayed_job) and this fork also supports MySQL.
 
-## Pre-Requisites
+## Pre-Requisites - If using MongoDB
+
 
 - Working installation of MongoDB
 
@@ -19,6 +20,12 @@ This is a direct port of [Delayed::Job](https://github.com/tobi/delayed_job).
     `echo 'extension=mongo.so' > /etc/php5/apache2/conf.d/mongo.ini`
 
     `service apache2 restart`
+
+** Pre-Requisites - If not using MySQL
+
+- Working installation/connection to a MySQL server
+
+- You can safely comment `use MongoDate;` in `li3_delayed_jobs\models\Jobs.php`
 
 ## Installation
 
