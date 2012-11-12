@@ -4,6 +4,13 @@ Delayed_job (or DJ) encapsulates the common pattern of asynchronously executing 
 
 This is a direct port of [Delayed::Job](https://github.com/tobi/delayed_job) and this fork also supports MySQL.
 
+The reason I've added MySQL support is because I required a data store that will ensure transactions for the project 
+I plan to embed this into and I don't want to maintain an mongo installation just for the sake of this plugin. 
+
+This can be modified to use any Database adapter or data source that you want but so far I've only tested MySQL 
+and the model will throw an exception if you try to use something other than mongo and MySQL. 
+Feel free to fork and send me a pull request.
+
 ## Pre-Requisites - If using MongoDB
 
 
@@ -21,11 +28,13 @@ This is a direct port of [Delayed::Job](https://github.com/tobi/delayed_job) and
 
     `service apache2 restart`
 
-** Pre-Requisites - If not using MySQL
+## Pre-Requisites - If using MySQL
 
 - Working installation/connection to a MySQL server
 
 - You can safely comment `use MongoDate;` in `li3_delayed_jobs\models\Jobs.php`
+
+> In fact, you must comment this line unless the Mongo PEAR extension is enabled in your PHP installation. (Just do it if not using mongo for this).
 
 ## Installation
 
