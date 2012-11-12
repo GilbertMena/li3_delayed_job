@@ -21,7 +21,7 @@ class Jobs extends \lithium\data\Model {
   /**
    * @var bool
    */
-  public $destoryFailedJobs = true;
+  public $destroyFailedJobs = false;
   
   /**
    *
@@ -42,6 +42,11 @@ class Jobs extends \lithium\data\Model {
    * @var string
    */
   public $workerName;
+  
+  /**
+   *@var string
+   */
+  protected static $dataSourceType = '';
 
   protected $_meta = array(
     'name' => null,
@@ -54,6 +59,17 @@ class Jobs extends \lithium\data\Model {
   
   public function __construct() {
     $this->workerName = 'host:'.gethostname().' pid:'.getmypid();
+    
+    if(is_a(Actions::connection(),'lithium\data\source\database'))
+    {
+      self::$dataSourceType = 'Database';
+    }
+    
+    if(is_a(Actions::connection(),'lithium\data\source\mongodb'))
+    {
+      self::$dataSourceType = 'Mongo';
+    }
+     
   }
   
   public function __get($property) {
@@ -124,19 +140,35 @@ class Jobs extends \lithium\data\Model {
       throw new ErrorException('Cannot enqueue items which do not respond to perform');
     }
     
-    if(!is_a($runAt, 'MongoDate')) {
+    if(!is_a($runAt, 'MongoDate')&&self::$dataSourceType=='Mongo') {
       $runAt = new MongoDate($runAt);
     }
     
+    if($runAt==null&&self::$dataSourceType=='Database')
+    {
+      $datetime = date('Y-m-d H:i:s') ;
+    }elseif(self::$dataSourceType=='Database')
+    {
+      $pattern = '(\d{2}|\d{4})(?:\-)?([0]{1}\d{1}|[1]{1}[0-2]{1})(?:\-)?([0-2]{1}\d{1}|[3]{1}[0-1]{1})(?:\s)?([0-1]{1}\d{1}|[2]{1}[0-3]{1})(?::)?([0-5]{1}\d{1})(?::)?([0-5]{1}\d{1})';
+      $patternValidation = preg_match($pattern,$runAt);
+      if(!$patternValidation||!DateTime::createFromFormat('Y-m-d H:i:s', $runAt))
+      {
+        throw new ErrorException('The runAt parameter does not comform to mysql DATETIME Y-m-d H:i:s or is not a valid date');
+      }
+      
+      
+    }
+    
+    
     $data = array(
-      'attempts' => 0,
-      'handler' => serialize($object),
-      'priority' => $priority,
-      'run_at' => $runAt,
+      'attempts' => 0, //
+      'handler' => serialize($object), //
+      'priority' => $priority, //
+      'run_at' => $runAt, //
       'completed_at' => null,
-      'failed_at' => null,
-      'locked_at' => null,
-      'locked_by' => null,
+      'failed_at' => null, //
+      'locked_at' => null, //
+      'locked_by' => null, //
     );
 
     $job = Jobs::create($data);
@@ -148,17 +180,40 @@ class Jobs extends \lithium\data\Model {
    *
    * @return bool|\lithium\data\entity\Document
    */
-  public static function findAvailable($limit = 5, $maxRunTime = self::MAX_RUN_TIME) {
-    $conditions = array(
-      'run_at' => array('$lte' => new \MongoDate()),
-    );
-    
-    if(isset(static::$minPriority)) {
-      $conditions['priority'] = array('$gte' => static::$minPriority);
+  public static function findAvailable($limit = 5, $maxRunTime = self::MAX_RUN_TIME)
+  {
+    if(self::$dataSourceType=='Mongo')
+    {
+      $conditions = array(
+        'run_at' => array('$lte' => new \MongoDate()),
+      );
+      
+      if(isset(static::$minPriority))
+      {
+        $conditions['priority'] = array('$gte' => static::$minPriority);
+      }
+      
+      if(isset(static::$maxPriority))
+      {
+        $conditions['priority'] = array('$lt' => static::$maxPriority);
+      }
     }
     
-    if(isset(static::$maxPriority)) {
-      $conditions['priority'] = array('$lt' => static::$maxPriority);
+    if(self::$dataSourceType=='Database')
+    {
+      $conditions = array(
+        'run_at' => array('<=' => date('Y-m-d H:i:s')),
+      );
+      
+      if(isset(static::$minPriority))
+      {
+        $conditions['priority'] = array('>=' => static::$minPriority);
+      }
+      
+      if(isset(static::$maxPriority))
+      {
+        $conditions['priority'] = array('<' => static::$maxPriority);
+      }
     }
 
     return Jobs::all(compact('conditions', 'limit'));
@@ -203,7 +258,7 @@ class Jobs extends \lithium\data\Model {
       $this->entity->save();
     } else {
       Logger::info('* [JOB] PERMANENTLY removing '.$this->name.' because of '.$this->attempts.' consequetive failures.');
-      if($this->destoryFailedJobs) {
+      if($this->destroyFailedJobs) {
         Jobs::delete($this->entity);
       } else {
         $this->failed_at = new MongoDate();
