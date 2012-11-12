@@ -3,8 +3,8 @@
 -- http://www.phpmyadmin.net
 --
 -- Host: localhost
--- Generation Time: Nov 12, 2012 at 01:58 AM
--- Server version: 5.5.27-log
+-- Generation Time: Nov 12, 2012 at 05:29 AM
+-- Server version: 5.5.27
 -- PHP Version: 5.4.6
 
 SET SQL_MODE="NO_AUTO_VALUE_ON_ZERO";
@@ -31,12 +31,12 @@ CREATE TABLE IF NOT EXISTS `delayed_jobs` (
   `priority` int(11) NOT NULL DEFAULT '0',
   `attempts` int(11) NOT NULL DEFAULT '0',
   `handler` mediumtext NOT NULL,
-  `last_error` text NOT NULL,
+  `last_error` text,
   `run_at` datetime NOT NULL,
-  `locked_at` datetime NOT NULL,
-  `failed_at` datetime NOT NULL,
-  `locked_by` varchar(50) NOT NULL,
-  `completed_at` datetime NOT NULL,
+  `locked_at` datetime DEFAULT NULL,
+  `failed_at` datetime DEFAULT NULL,
+  `locked_by` varchar(50) DEFAULT NULL,
+  `completed_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 AUTO_INCREMENT=1 ;
 
