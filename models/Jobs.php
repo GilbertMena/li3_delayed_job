@@ -5,7 +5,7 @@ namespace li3_delayed_job\models;
 use lithium\analysis\Logger;
 use ErrorException;
 use InvalidArgumentException;
-use MongoDate;
+//use MongoDate; //can be safely commented if using MySql and required if using Mongo
 use lithium\data\Connections;
 
 class Jobs extends \lithium\data\Model {
