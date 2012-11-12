@@ -87,6 +87,12 @@ class Jobs extends \lithium\data\Model {
       $this->payload = static::deserialize($this->handler);
       return $this->payload;
     }
+    
+    //reset the _id to id for database data source types
+    if($property=='_id'&&self::$dataSourceType=='Database')
+    {
+      $property = 'id';
+    }
 
     if(isset($this->entity)) {
       return $this->entity->$property;
@@ -98,6 +104,12 @@ class Jobs extends \lithium\data\Model {
   public function __set($property, $value) {
     if(isset($this->$property) || $property == 'name' || $property == 'payload') {
       $this->$property = $value;
+    }
+    
+    //reset the _id to id for database data source types
+    if($property=='_id'&&self::$dataSourceType=='Database')
+    {
+      $property = 'id';
     }
 
     $this->entity->$property = $value;
