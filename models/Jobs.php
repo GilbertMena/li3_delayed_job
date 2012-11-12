@@ -6,6 +6,7 @@ use lithium\analysis\Logger;
 use ErrorException;
 use InvalidArgumentException;
 use MongoDate;
+use lithium\data\Connections;
 
 class Jobs extends \lithium\data\Model {
   /**
@@ -46,33 +47,61 @@ class Jobs extends \lithium\data\Model {
   /**
    *@var string
    */
-  protected static $dataSourceType = '';
+  protected static $dataSourceType;
 
   protected $_meta = array(
     'name' => null,
     'title' => null,
     'class' => null,
-    'source' => null,
-    'connection' => 'delayed_job',
+    'source' => 'delayed_jobs',
+    'connection' => 'default',
     'initialized' => false
   );
   
-  public function __construct() {
-    $this->workerName = 'host:'.gethostname().' pid:'.getmypid();
-    
-    if(is_a(Actions::connection(),'lithium\data\source\database'))
+  public function __construct()
+  {
+    //set the datasourcetype if not already set
+    if(empty(self::$dataSourceType))
     {
-      self::$dataSourceType = 'Database';
+      self::setDataSourceType();
     }
     
-    if(is_a(Actions::connection(),'lithium\data\source\mongodb'))
+    $this->workerName = 'host:'.gethostname().' pid:'.getmypid();
+  }
+  
+  public function setDataSourceType()
+  {
+    $config = Connections::get($this->_meta['connection'], array('config' => true));
+
+    if($config['type']=='MongoDB')
     {
       self::$dataSourceType = 'Mongo';
+      return;
     }
-     
+    
+    if($config['type']=='database')
+    {
+      if($config['adapter']=='MySql')
+      {
+        self::$dataSourceType = 'Database';
+        return;
+      }else
+      {
+        throw new \ErrorException('Database adapter '.$config['adapter'].' is not currently supported.');
+      }
+    }
+    
+    throw new \ErrorException('Couldnt determine the datasourcetype.');
   }
   
   public function __get($property) {
+    
+    //set the datasourcetype if not already set
+    if(empty(self::$dataSourceType))
+    {
+      $this->setDataSourceType();
+    }
+    
     if($property == 'name') {
       if(method_exists($this->payload, 'displayName')) {
         $this->name = $this->payload->displayName();
@@ -102,6 +131,13 @@ class Jobs extends \lithium\data\Model {
   }
   
   public function __set($property, $value) {
+    
+    //set the datasourcetype if not already set
+    if(empty(self::$dataSourceType))
+    {
+      $this->setDataSourceType();
+    }
+    
     if(isset($this->$property) || $property == 'name' || $property == 'payload') {
       $this->$property = $value;
     }
@@ -148,6 +184,27 @@ class Jobs extends \lithium\data\Model {
    * @throws ErrorException
    */
   public static function enqueue($object, $priority = 0, $runAt = null) {
+    
+    $data = array(
+      'attempts' => 0, 
+      'handler' => serialize($object), 
+      'priority' => $priority, 
+      //'run_at' => $runAt, 
+      'completed_at' => null,
+      'failed_at' => null, 
+      'locked_at' => null, 
+      'locked_by' => null, 
+    );
+    
+    //need to instantiate the object first so that we can access the _meta instance property
+    $job = Jobs::create($data);
+    
+    //set the datasourcetype if not already set
+    if(empty(self::$dataSourceType))
+    {
+      $job->setDataSourceType();
+    }
+    
     if(!method_exists($object, 'perform')) {
       throw new ErrorException('Cannot enqueue items which do not respond to perform');
     }
@@ -158,7 +215,7 @@ class Jobs extends \lithium\data\Model {
     
     if($runAt==null&&self::$dataSourceType=='Database')
     {
-      $datetime = date('Y-m-d H:i:s') ;
+      $runAt = date('Y-m-d H:i:s') ;
     }elseif(self::$dataSourceType=='Database')
     {
       $pattern = '(\d{2}|\d{4})(?:\-)?([0]{1}\d{1}|[1]{1}[0-2]{1})(?:\-)?([0-2]{1}\d{1}|[3]{1}[0-1]{1})(?:\s)?([0-1]{1}\d{1}|[2]{1}[0-3]{1})(?::)?([0-5]{1}\d{1})(?::)?([0-5]{1}\d{1})';
@@ -171,19 +228,11 @@ class Jobs extends \lithium\data\Model {
       
     }
     
+    $data['run_at'] = $runAt;
     
-    $data = array(
-      'attempts' => 0, //
-      'handler' => serialize($object), //
-      'priority' => $priority, //
-      'run_at' => $runAt, //
-      'completed_at' => null,
-      'failed_at' => null, //
-      'locked_at' => null, //
-      'locked_by' => null, //
-    );
-
+    //hate to do it this way but need to for lack of a better option right now, im recreating the object so we have the correctn run_at
     $job = Jobs::create($data);
+    
     return $job->save();
   }
   
@@ -194,6 +243,13 @@ class Jobs extends \lithium\data\Model {
    */
   public static function findAvailable($limit = 5, $maxRunTime = self::MAX_RUN_TIME)
   {
+    
+    //set the datasourcetype if not already set
+    if(empty(self::$dataSourceType))
+    {
+      self::setDataSourceType();
+    }
+    
     if(self::$dataSourceType=='Mongo')
     {
       $conditions = array(
@@ -241,7 +297,23 @@ class Jobs extends \lithium\data\Model {
   }
   
   protected function lockExclusively($maxRunTime, $worker) {
-    $time_now = new MongoDate();
+    
+    //set the datasourcetype if not already set
+    if(empty(self::$dataSourceType))
+    {
+      self::setDataSourceType();
+    }
+    
+    if(self::$dataSourceType=='Mongo')
+    {
+      $time_now = new MongoDate();
+    }
+    
+    if(self::$dataSourceType=='Database')
+    {
+      $time_now = date('Y-m-d H:i:s');
+    }
+    
 
     if($this->locked_by != $worker) {
       $locked = Jobs::update(array('locked_at' => $time_now, 'locked_by' => $worker), array('_id' => $this->_id));
@@ -262,6 +334,14 @@ class Jobs extends \lithium\data\Model {
    * @param $message string
    */
   public function reschedule($message) {
+    
+    //set the datasourcetype if not already set
+    if(empty(self::$dataSourceType))
+    {
+      self::setDataSourceType();
+    }
+
+    
     if($this->attempts < self::MAX_ATTEMPTS) {
       $this->attempts += 1;
       $this->run_at = $time;
@@ -273,7 +353,17 @@ class Jobs extends \lithium\data\Model {
       if($this->destroyFailedJobs) {
         Jobs::delete($this->entity);
       } else {
-        $this->failed_at = new MongoDate();
+        
+        if(self::$dataSourceType=='Database')
+        {
+           $this->failed_at = date('Y-m-d H:i:s');
+        }
+        
+        if(self::$dataSourceType=='Mongo')
+        {
+          $this->failed_at = new MongoDate();
+        }
+        
       }
     }
   }
