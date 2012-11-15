@@ -48,7 +48,16 @@ class Jobs extends \lithium\data\Model {
    *@var string
    */
   protected static $dataSourceType;
+  /*
+   *@var bool
+   *@description whether or not to delete the queued objects after completion
+   */
+  public static $storeObject = true;
   
+  /*
+   *@var string
+   *@description The default data store id. Use _id for Mongo or id for MySQL, it is set automatically
+   */
   public static $keyID = 'id';
 
   protected $_meta = array(
@@ -276,6 +285,7 @@ class Jobs extends \lithium\data\Model {
     {
       $conditions = array(
         'run_at' => array('<=' => date('Y-m-d H:i:s')),
+        'completed_at'=>null
       );
       
       if(isset(static::$minPriority))
@@ -407,7 +417,28 @@ class Jobs extends \lithium\data\Model {
     try {
       $time_start = microtime(true);
       $this->invoke();
-      $this->delete($this->entity);
+      if(self::$storeObject)
+      {
+        //needs to be moved into its own method because the code exists in self::lockExclusively
+        if(self::$dataSourceType=='Mongo')
+        {
+          $time_now = new MongoDate();
+        }
+        
+        if(self::$dataSourceType=='Database')
+        {
+          $time_now = date('Y-m-d H:i:s');
+        }
+        $idKey = self::$keyID;
+        //end of code that needs refactoring
+        
+        $complete = Jobs::update(array('completed_at' => $time_now), array($idKey => $this->$idKey));
+      }else
+      {
+        $this->delete($this->entity);
+      }
+      
+      
       $time_end = microtime(true);
       $runtime = $time_end - $time_start;
       
