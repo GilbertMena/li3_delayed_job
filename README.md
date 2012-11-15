@@ -46,8 +46,16 @@ Check out the code to your library directory
 Include the library in your `/app/config/bootstrap/libraries.php`
 
     Libraries::add('li3_delayed_job');
-    
+
+## Configuration
+
+- In the `li3_delayed_job\models\Jobs.php` you can modify the following:
+- `Jobs::storeObject` determines whether or not to keep the queue objects in the table
+- `Jobs::destroyFailedJobs` determines whether or not to erase failed tasks after attempts are exhausted
+- `Jobs::keyID` Stores the default storage engine table/document table primary key.  Currently set automatically to `_id` for mongo and `id` for database (assuming MySQL).  Look at `Jobs::setDataSourceType()` for change these.
+
 ## Usage
+
 
 Jobs are simple objects with a method called perform.  Any object which responds to perform can be stuffed into the jobs collection. Job objects are serialized to yaml so that they can later be resurrected by the job runner.
 
