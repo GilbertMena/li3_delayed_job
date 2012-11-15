@@ -56,7 +56,7 @@ class Jobs extends \lithium\data\Model {
   
   /*
    *@var string
-   *@description The default data store id. Use _id for Mongo or id for MySQL, it is set automatically
+   *@description The default data store id. Use _id for Mongo or id for MySQL, it is set automatically look at the setDataSourceType method to change the auto setting
    */
   public static $keyID = 'id';
 
