@@ -48,6 +48,8 @@ class Jobs extends \lithium\data\Model {
    *@var string
    */
   protected static $dataSourceType;
+  
+  public static $keyID = 'id';
 
   protected $_meta = array(
     'name' => null,
@@ -76,6 +78,7 @@ class Jobs extends \lithium\data\Model {
     if($config['type']=='MongoDB')
     {
       self::$dataSourceType = 'Mongo';
+      self::$keyID = '_id';
       return;
     }
     
@@ -84,6 +87,7 @@ class Jobs extends \lithium\data\Model {
       if($config['adapter']=='MySql')
       {
         self::$dataSourceType = 'Database';
+        self::$keyID = 'id';
         return;
       }else
       {
@@ -193,7 +197,8 @@ class Jobs extends \lithium\data\Model {
       'completed_at' => null,
       'failed_at' => null, 
       'locked_at' => null, 
-      'locked_by' => null, 
+      'locked_by' => null,
+      'last_error' => null, 
     );
     
     //need to instantiate the object first so that we can access the _meta instance property
@@ -314,12 +319,15 @@ class Jobs extends \lithium\data\Model {
       $time_now = date('Y-m-d H:i:s');
     }
     
-
+    
+     $idKey = self::$keyID;
+    
+    
     if($this->locked_by != $worker) {
-      $locked = Jobs::update(array('locked_at' => $time_now, 'locked_by' => $worker), array('_id' => $this->_id));
+      $locked = Jobs::update(array('locked_at' => $time_now, 'locked_by' => $worker), array($idKey => $this->$idKey));
     } else {
-      $locked = Jobs::update(array('locked_at' => $time_now), array('_id' => $this->_id), array('_id' => $this->_id));
-    }    
+      $locked = Jobs::update(array('locked_at' => $time_now), array($idKey => $this->$idKey), array('_id' => $this->$idKey));
+    }
     
     if($locked) {
       $this->locked_at = $time_now;
