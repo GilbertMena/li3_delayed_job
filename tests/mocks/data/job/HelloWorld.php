@@ -6,5 +6,7 @@ class HelloWorld
 {
   public function perform() {
     $var = 'Hello World!';
+    echo $var;
+    
   }
 }
