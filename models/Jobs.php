@@ -48,6 +48,17 @@ class Jobs extends \lithium\data\Model {
    *@var string
    */
   protected static $dataSourceType;
+  /*
+   *@var bool
+   *@description whether or not to delete the queued objects after completion
+   */
+  public static $storeObject = true;
+  
+  /*
+   *@var string
+   *@description The default data store id. Use _id for Mongo or id for MySQL, it is set automatically
+   */
+  public static $keyID = 'id';
 
   protected $_meta = array(
     'name' => null,
@@ -76,6 +87,7 @@ class Jobs extends \lithium\data\Model {
     if($config['type']=='MongoDB')
     {
       self::$dataSourceType = 'Mongo';
+      self::$keyID = '_id';
       return;
     }
     
@@ -84,6 +96,7 @@ class Jobs extends \lithium\data\Model {
       if($config['adapter']=='MySql')
       {
         self::$dataSourceType = 'Database';
+        self::$keyID = 'id';
         return;
       }else
       {
@@ -193,7 +206,8 @@ class Jobs extends \lithium\data\Model {
       'completed_at' => null,
       'failed_at' => null, 
       'locked_at' => null, 
-      'locked_by' => null, 
+      'locked_by' => null,
+      'last_error' => null, 
     );
     
     //need to instantiate the object first so that we can access the _meta instance property
@@ -271,6 +285,7 @@ class Jobs extends \lithium\data\Model {
     {
       $conditions = array(
         'run_at' => array('<=' => date('Y-m-d H:i:s')),
+        'completed_at'=>null
       );
       
       if(isset(static::$minPriority))
@@ -314,12 +329,15 @@ class Jobs extends \lithium\data\Model {
       $time_now = date('Y-m-d H:i:s');
     }
     
-
+    
+     $idKey = self::$keyID;
+    
+    
     if($this->locked_by != $worker) {
-      $locked = Jobs::update(array('locked_at' => $time_now, 'locked_by' => $worker), array('_id' => $this->_id));
+      $locked = Jobs::update(array('locked_at' => $time_now, 'locked_by' => $worker), array($idKey => $this->$idKey));
     } else {
-      $locked = Jobs::update(array('locked_at' => $time_now), array('_id' => $this->_id), array('_id' => $this->_id));
-    }    
+      $locked = Jobs::update(array('locked_at' => $time_now), array($idKey => $this->$idKey), array('_id' => $this->$idKey));
+    }
     
     if($locked) {
       $this->locked_at = $time_now;
@@ -399,7 +417,28 @@ class Jobs extends \lithium\data\Model {
     try {
       $time_start = microtime(true);
       $this->invoke();
-      $this->delete($this->entity);
+      if(self::$storeObject)
+      {
+        //needs to be moved into its own method because the code exists in self::lockExclusively
+        if(self::$dataSourceType=='Mongo')
+        {
+          $time_now = new MongoDate();
+        }
+        
+        if(self::$dataSourceType=='Database')
+        {
+          $time_now = date('Y-m-d H:i:s');
+        }
+        $idKey = self::$keyID;
+        //end of code that needs refactoring
+        
+        $complete = Jobs::update(array('completed_at' => $time_now), array($idKey => $this->$idKey));
+      }else
+      {
+        $this->delete($this->entity);
+      }
+      
+      
       $time_end = microtime(true);
       $runtime = $time_end - $time_start;
       
